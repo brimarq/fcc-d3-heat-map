@@ -1,0 +1,23 @@
+{
+  "name": "d3-heat-map",
+  "version": "0.1.0",
+  "description": "https://learn.freecodecamp.org/data-visualization/data-visualization-projects/visualize-data-with-a-heat-map",
+  "private": true,
+  "scripts": {
+    "start": "browser-sync -s -w -b 'google chrome'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brimarq/fcc-d3-heat-map.git"
+  },
+  "author": "Brian Marquis <rbmarquis.dev@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/brimarq/fcc-d3-heat-map/issues"
+  },
+  "homepage": "https://github.com/brimarq/fcc-d3-heat-map#readme",
+  "devDependencies": {
+    "browser-sync": "^2.26.3"
+  }
+}
