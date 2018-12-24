@@ -41,19 +41,9 @@ function drawSvg() {
   svgProps.innerWidth = svgProps.outerWidth - svgProps.margin.left - svgProps.margin.right;
   svgProps.innerHeight = svgProps.outerHeight - svgProps.margin.top - svgProps.margin.bottom;
 
-  console.log(svgProps);
+  // console.log(svgProps);
 
-  /** Set initial svg dimensions to 16:10 ratio */
-  const w = 1000;
-  const h = w / 1.6;
-
-  /** Set "margins" for the chart */
-  const margin = {top: h * .1, right: w * .07, bottom: h * .1, left: w * .06};
-
-  /** Set width and height for the chart */
-  const width = w - margin.left - margin.right;
-  const height = h - margin.top - margin.bottom;
-
+  
   /** Set the scales for x and y axes */
   const xScale = d3.scaleBand()
     .domain(data.yearsUnique)
@@ -82,8 +72,6 @@ function drawSvg() {
   /** Create svg element */
   const svg = d3.select("main div#svg-container")
     .append("svg")
-    // .attr("width", width + margin.left + margin.right)
-    // .attr("height", height + margin.top + margin.bottom)
     .attr("width", svgProps.outerWidth)
     .attr("height", svgProps.outerHeight)
   ;
@@ -132,9 +120,9 @@ function drawSvg() {
 
 
   /** Legend for heatmap, positioned on the right-edge */
-  const legendGroup = heatmap.append("g")
+  const legendGroup = svg.append("g")
     .attr("id", "legend")
-    .attr("transform", "translate(" + 100 + ", " + 20 + ")")
+    .attr("transform", "translate(" + 50 + ", " + 5 + ")")
     .style("outline", "1px solid lime")
   ;
 
