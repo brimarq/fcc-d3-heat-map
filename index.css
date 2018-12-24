@@ -44,3 +44,20 @@ svg {
   background: #fefefe;
   box-shadow: 10px 10px 20px -10px #000;
 }
+
+#tooltip {
+  display: flex;
+  flex-direction: column;
+  /* text-align: left; */
+  padding: 8px;
+  color: #fefefe;
+  box-shadow: 3px 3px 10px -5px #000; 
+  border-radius: 10px;
+  font-size: .8em;
+  justify-content: start;
+  max-width: 110px;
+}
+
+#tooltip span {
+  padding: 2px;
+}

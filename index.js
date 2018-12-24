@@ -1,5 +1,5 @@
 const dataUrl = "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json";
-let json, data = {}, req = new XMLHttpRequest();
+let json, data = {}, req = new XMLHttpRequest(), formatMonth = d3.timeFormat("%B");
 
 /** Send http req */
 req.open("GET", dataUrl ,true);
@@ -19,18 +19,28 @@ req.onload = function() {
   data.months.unique = [...new Set(data.months.all)];
   data.variances.unique = [...new Set(data.variances.all)];
   data.temps.unique = [...new Set(data.temps.all)];
-  // data.temps.uniqueSorted = [...data.temps.unique].sort((a, b) => a - b);
-  data.temps.uniqueSorted = [...data.temps.unique].sort((a, b) => b - a);
+  data.temps.uniqueHtoL = [...data.temps.unique].sort((a, b) => b - a);
+  data.temps.uniqueLtoH = [...data.temps.unique].sort((a, b) => a - b);
 
   console.log(data);
-  console.log(d3.extent(data.temps.all));
-  console.log(d3.extent(data.temps.unique));
-  
   
   drawSvg();
 };
 
-
+/** Create hidden tooltip div */
+const tooltip = d3.select("body")
+  .append("div")
+  .attr("id", "tooltip")
+  .style("position", "absolute")
+  .style("z-index", "10")
+  .style("background", "hsla(0, 0%, 0%, .8)")
+  .style("visibility", "hidden")
+  .each(function() {
+    d3.select(this).append("span").attr("id", "yr-mo");
+    d3.select(this).append("span").attr("id", "tavg");
+    d3.select(this).append("span").attr("id", "variance");
+  })
+;
 /** built-in colorbrewer2.org color scheme, hot to cold, 11 colors 
  *    d3.schemeRdYlBu[11]
  * returns ['#a50026','#d73027','#f46d43','#fdae61','#fee090','#ffffbf','#e0f3f8','#abd9e9','#74add1','#4575b4','#313695']
@@ -78,7 +88,7 @@ function drawSvg() {
   
   const yAxis = d3.axisLeft(yScale)
     .tickFormat(function(d) {
-      let formatMonth = d3.timeFormat("%B");
+      
       return formatMonth(new Date(0, d));
     })
   ;
@@ -116,7 +126,7 @@ function drawSvg() {
   ;
 
   const colorScale = d3.scaleOrdinal()
-    .domain(data.temps.uniqueSorted)
+    .domain(data.temps.uniqueHtoL)
     .range(d3.schemeRdYlBu[9])
   ;
 
@@ -264,19 +274,45 @@ function drawSvg() {
   });
 
 
-  /** Range of variance values
-   *  d3.extent(json.monthlyVariance, d => d.variance); // returns [-6.976, 5.228]
-   *  range width (5.228 + -6.976) = 12.204 
-   */
+  /** Hover effects for tooltip */
+  heatmap.selectAll(".cell")
+   .on("mouseover", function(d) {
+     let dataset = this.dataset, 
+     year = dataset.year,
+     month = formatMonth(new Date(0, dataset.month)),
+     tempC = dataset.temp,
+     tempF = d3.format(".1~f")(tempC * 1.8 + 32),
+     varC = d.variance,
+     yrMoText = year + ", " + month,
+     tavgText = tempC + "℃ (" + tempF + "℉)",
+     varianceText = varC + "℃" 
+    //  tooltipBg = "hsla(0, 0%, 0%, 0.8)" 
+     ;
 
-  /** Sort variance values, smallest to highest (returns 3153 items)
-   *  json.monthlyVariance.map(x => x.variance).sort((a,b) => a - b);
-   */
-
-  /** Sort UNIQUE variance values, smallest to highest (returns 1959 items)
-   *  [...new Set(json.monthlyVariance.map(x => x.variance))].sort((a,b) => a - b);
-   */
-
+     d3.select(this).style("outline", "1px solid lime");
+     
+     tooltip
+       .style("visibility", "visible")
+      //  .style("background", tooltipBg)
+       .attr("data-year", dataset.year)
+       .each(function() {
+         d3.select("#yr-mo").text(yrMoText).style("font-weight", "bold");
+         d3.select("#tavg").text(tavgText);
+         d3.select("#variance").text(varianceText);
+       })
+     ;
+   })
+   .on("mousemove", function(d) { 
+     tooltip
+       .style("top", (d3.event.pageY - 50) + "px")
+       .style("left", (d3.event.pageX + 10) + "px");
+   })
+   .on("mouseout", function() {
+    d3.select(this).style("outline", "none");
+    //  tooltip.style("visibility", "hidden");
+   })
+ ;
+  
   
 
 }
