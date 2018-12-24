@@ -8,11 +8,25 @@ req.onload = function() {
   json = JSON.parse(req.responseText);
   // d3.select("main div#svg-container").text(JSON.stringify(json));
 
-  // De-duplicate years and months into their own arrays, change months to 0-11.
-  data.yearsUnique = [...new Set(json.monthlyVariance.map(x => x.year))];
-  data.monthsUnique = [...new Set(json.monthlyVariance.map(x => x.month -1))];
+  // Create arrays from relevant json data, changing months to 0-11 instead of 1-12.
+  data.years = { all: json.monthlyVariance.map(x => x.year)};
+  data.months = { all: json.monthlyVariance.map(x => x.month - 1)};
+  data.variances = { all: json.monthlyVariance.map(x => x.variance)};
+  data.temps = { all: data.variances.all.map(x => +d3.format(".1~f")(json.baseTemperature + x))};
+
+  // Deduplicate the previous arrays
+  data.years.unique = [...new Set(data.years.all)];
+  data.months.unique = [...new Set(data.months.all)];
+  data.variances.unique = [...new Set(data.variances.all)];
+  data.temps.unique = [...new Set(data.temps.all)];
+  // data.temps.uniqueSorted = [...data.temps.unique].sort((a, b) => a - b);
+  data.temps.uniqueSorted = [...data.temps.unique].sort((a, b) => b - a);
+
+  console.log(data);
+  console.log(d3.extent(data.temps.all));
+  console.log(d3.extent(data.temps.unique));
   
-  // console.log(json);
+  
   drawSvg();
 };
 
@@ -46,12 +60,12 @@ function drawSvg() {
   
   /** Set the scales for x and y axes */
   const xScale = d3.scaleBand()
-    .domain(data.yearsUnique)
+    .domain(data.years.unique)
     .range([0, svgProps.innerWidth])
   ;
 
   const yScale = d3.scaleBand()
-    .domain(data.monthsUnique)
+    .domain(data.months.unique)
     .range([0, svgProps.innerHeight]) 
   ; 
 
@@ -100,6 +114,36 @@ function drawSvg() {
   const heatmap = svg.append("g")
     .attr("id", "heatmap")
   ;
+
+  const colorScale = d3.scaleOrdinal()
+    .domain(data.temps.uniqueSorted)
+    .range(d3.schemeRdYlBu[9])
+  ;
+
+  /** Create rects from json data */
+  heatmap.selectAll("rect")
+    .data(json.monthlyVariance)
+    .enter()
+    .append("rect")
+    .attr("class", "cell")
+    .attr("x", (d) => xScale(d.year))
+    .attr("y", (d) => yScale(d.month - 1))
+    .attr("width", xScale.bandwidth())
+    .attr("height", yScale.bandwidth())
+    .attr("data-month", (d) => d.month - 1)
+    .attr("data-year", (d) => d.year)
+    .attr("data-temp", (d) => +d3.format(".1~f")(json.baseTemperature + d.variance))
+    .attr("fill", function(d) {
+      let temp = d3.select(this).attr("data-temp")
+      // console.log(temp);
+      return colorScale(temp);
+    })
+    
+  ;
+
+
+
+
 
   /** Create heatmap axes */
   // heatmap x-axis 
