@@ -125,9 +125,35 @@ function drawSvg() {
     .attr("id", "heatmap")
   ;
 
-  const colorScale = d3.scaleOrdinal()
-    .domain(data.temps.uniqueHtoL)
-    .range(d3.schemeRdYlBu[9])
+  function getQuantileDomain(minValue, maxValue, numGroups) {
+    /** This function creates a domain of quantiles for the number 
+     * of groups suplied in the function. Since quantiles are the 
+     * 'cut points' within a range of sequential values that divide
+     * the range into groups, the min and max values will be left out
+     * of the resulting array, and the domainArr.length will be 
+     * numGroups - 1. The number of values in any range paired with
+     * the resulting domainArr should be equal to the number of 
+     * groups in numGroups.
+     * See https://en.wikipedia.org/wiki/Quantile and 
+     * https://github.com/d3/d3-scale/blob/master/README.md#scaleQuantile
+     */
+    let domainArr = [],
+    groupSize = (maxValue - minValue) / numGroups;
+    
+    for (let i = 1; i < numGroups; i++) {
+      domainArr.push(+d3.format(".1~f")(minValue + (groupSize * i)));
+    }
+    return domainArr;
+  }
+
+  console.log(getQuantileDomain(d3.min(data.temps.all), d3.max(data.temps.all), 11));
+  console.log(getQuantileDomain(d3.min(data.temps.all), d3.max(data.temps.all), 11).length);
+
+  const heatmapColorScheme = d3.schemeRdYlBu[11].reverse();
+
+  const colorScale = d3.scaleThreshold()
+    .domain(getQuantileDomain(d3.min(data.temps.unique), d3.max(data.temps.unique), 11))
+    .range(heatmapColorScheme)
   ;
 
   /** Create rects from json data */
@@ -142,18 +168,12 @@ function drawSvg() {
     .attr("height", yScale.bandwidth())
     .attr("data-month", (d) => d.month - 1)
     .attr("data-year", (d) => d.year)
-    .attr("data-temp", (d) => +d3.format(".1~f")(json.baseTemperature + d.variance))
+    .attr("data-temp", (d) => d3.format(".1~f")(json.baseTemperature + d.variance))
     .attr("fill", function(d) {
-      let temp = d3.select(this).attr("data-temp")
-      // console.log(temp);
+      let temp = +d3.select(this).node().dataset.temp;
       return colorScale(temp);
     })
-    
   ;
-
-
-
-
 
   /** Create heatmap axes */
   // heatmap x-axis 
@@ -170,9 +190,6 @@ function drawSvg() {
     .call(yAxis)
   ;
 
-
-
-
   /** Legend for heatmap, positioned on the right-edge */
   const legendGroup = svg.append("g")
     .attr("id", "legend")
@@ -183,65 +200,77 @@ function drawSvg() {
   const legend = legendGroup.append("g");
 
   const legendXScale = d3.scaleBand()
-    .domain([...new Set(json.monthlyVariance.map(x => x.year))])
+    .domain(colorScale.domain())
     .range([0 , svgProps.innerWidth])
   ;
 
-  // Create a rect for legend box that will center legend contents
-  legend.append("rect")
-    .attr("id", "legend-box")
-    .attr("fill", "hsl(0, 0%, 96%)")
-    .attr("rx", 8)
-    .attr("ry", 8)
+  legend.selectAll("rect")
+    .data(heatmapColorScheme)
+    .enter()
+    .append("rect")
+    .attr("x", function(d, i) { return i * 20})
+    .attr("y", 0)
+    .attr("width", 20)
+    .attr("height", 20)
+    .attr("fill", function(d) {return d})
   ;
     
-  // Group for legend text
-  legend.append("g")
-    .attr("id", "legend-text")
-    .attr("font-size", ".8em")
-    .style("text-anchor", "start")
-    .style("outline", "1px solid blue")
-    .each(function() {
-      d3.select(this).append("text")
-        .attr("dy", "1em")
-        .text("Top placeholder text element ")
-      ;
-      d3.select(this).append("text")
-        .attr("dy", "2.5em")
-        .text("Bottom placeholder text element ")
-      ;
-    })
+  ;
+  // Create a rect for legend box that will center legend contents
+  // legend.append("rect")
+  //   .attr("id", "legend-box")
+  //   .attr("fill", "hsl(0, 0%, 96%)")
+  //   .attr("rx", 8)
+  //   .attr("ry", 8)
+  // ;
+    
+  // // Group for legend text
+  // legend.append("g")
+  //   .attr("id", "legend-text")
+  //   .attr("font-size", ".8em")
+  //   .style("text-anchor", "start")
+  //   .style("outline", "1px solid blue")
+  //   .each(function() {
+  //     d3.select(this).append("text")
+  //       .attr("dy", "1em")
+  //       .text("Top placeholder text element ")
+  //     ;
+  //     d3.select(this).append("text")
+  //       .attr("dy", "2.5em")
+  //       .text("Bottom placeholder text element ")
+  //     ;
+  //   })
   ;
 
   // Position the legend contents
-  legend.each(function() {
-    // set padding for the legend box
-    const padding = {top: 10, right: 10, bottom: 10, left: 10};
-    // get legend-text group bbox dimensions
-    const legendText = {
-      width: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().width),
-      height: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().height)
-    };
+  // legend.each(function() {
+  //   // set padding for the legend box
+  //   const padding = {top: 10, right: 10, bottom: 10, left: 10};
+  //   // get legend-text group bbox dimensions
+  //   const legendText = {
+  //     width: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().width),
+  //     height: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().height)
+  //   };
 
-    // Calculate legend-box rect dimensions
-    const box = {
-      width: Math.round(padding.left + legendText.width + padding.right), 
-      height: Math.round(padding.top + legendText.height + padding.bottom)
-    };
+  //   // Calculate legend-box rect dimensions
+  //   const box = {
+  //     width: Math.round(padding.left + legendText.width + padding.right), 
+  //     height: Math.round(padding.top + legendText.height + padding.bottom)
+  //   };
     
-    // Position legend-box and set dimensions
-    d3.select("rect#legend-box")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", box.width)
-      .attr("height", box.height)
-    ;
+  //   // Position legend-box and set dimensions
+  //   d3.select("rect#legend-box")
+  //     .attr("x", 0)
+  //     .attr("y", 0)
+  //     .attr("width", box.width)
+  //     .attr("height", box.height)
+  //   ;
 
-    // Position legend-text group, centered "within" legend-box
-    d3.select("g#legend-text")
-      .attr("transform", "translate(" + padding.left + ", " + padding.top + ")")
-    ;
-  });
+  //   // Position legend-text group, centered "within" legend-box
+  //   d3.select("g#legend-text")
+  //     .attr("transform", "translate(" + padding.left + ", " + padding.top + ")")
+  //   ;
+  // });
 
 
 
@@ -286,14 +315,12 @@ function drawSvg() {
      yrMoText = year + ", " + month,
      tavgText = tempC + "℃ (" + tempF + "℉)",
      varianceText = varC + "℃" 
-    //  tooltipBg = "hsla(0, 0%, 0%, 0.8)" 
      ;
-
-     d3.select(this).style("outline", "1px solid lime");
+    
+     d3.select(this).style("outline", "2px solid lime");
      
      tooltip
        .style("visibility", "visible")
-      //  .style("background", tooltipBg)
        .attr("data-year", dataset.year)
        .each(function() {
          d3.select("#yr-mo").text(yrMoText).style("font-weight", "bold");
@@ -304,15 +331,20 @@ function drawSvg() {
    })
    .on("mousemove", function(d) { 
      tooltip
-       .style("top", (d3.event.pageY - 50) + "px")
-       .style("left", (d3.event.pageX + 10) + "px");
+       .style("top", (d3.event.pageY - 70) + "px")
+       .style("left", (d3.event.pageX + 20) + "px");
    })
    .on("mouseout", function() {
     d3.select(this).style("outline", "none");
-    //  tooltip.style("visibility", "hidden");
+     tooltip.style("visibility", "hidden");
    })
  ;
   
   
+
+
+
+
+
 
 }
