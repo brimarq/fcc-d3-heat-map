@@ -1,28 +1,29 @@
 const dataUrl = "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json";
-let json, data = {}, req = new XMLHttpRequest(), formatMonth = d3.timeFormat("%B");
+let data, req = new XMLHttpRequest(), formatMonth = d3.timeFormat("%B");
 
 /** Send http req */
 req.open("GET", dataUrl ,true);
 req.send();
 req.onload = function() {
-  json = JSON.parse(req.responseText);
+  data = JSON.parse(req.responseText);
   // d3.select("main div#svg-container").text(JSON.stringify(json));
 
-  // Create arrays from relevant json data, changing months to 0-11 instead of 1-12.
-  data.years = { all: json.monthlyVariance.map(x => x.year)};
-  data.months = { all: json.monthlyVariance.map(x => x.month - 1)};
-  data.variances = { all: json.monthlyVariance.map(x => x.variance)};
-  data.temps = { all: data.variances.all.map(x => +d3.format(".1~f")(json.baseTemperature + x))};
-
-  // Deduplicate the previous arrays
-  data.years.unique = [...new Set(data.years.all)];
-  data.months.unique = [...new Set(data.months.all)];
-  data.variances.unique = [...new Set(data.variances.all)];
-  data.temps.unique = [...new Set(data.temps.all)];
-  data.temps.uniqueHtoL = [...data.temps.unique].sort((a, b) => b - a);
-  data.temps.uniqueLtoH = [...data.temps.unique].sort((a, b) => a - b);
-
-  console.log(data);
+  /** Add useful arrays and values from relevant data */
+  // De-duplicated array of years mapped from monthlyVariance array objects
+  data.years = [...new Set(data.monthlyVariance.map(x => x.year))];
+  // De-duplicated array of months mapped from monthlyVariance array objects converted to 0-11 instead of 1-12.
+  data.months = [...new Set(data.monthlyVariance.map(x => x.month - 1))];
+  // De-duplicated array of temps created by first mapping variance from monthlyVariance array objects, 
+  // then mapping that array to convert to temperature.
+  data.temps = [...new Set(
+    data.monthlyVariance.map(x => x.variance)
+    .map(x => +d3.format(".1~f")(data.baseTemperature + x))
+  )];
+  // Min and max values from data.temps
+  data.tempsMin = d3.min(data.temps);
+  data.tempsMax = d3.max(data.temps);
+  
+  // console.log(data);
   
   drawSvg();
 };
@@ -50,24 +51,29 @@ function drawSvg() {
   svgProps.outerHeight = svgProps.outerWidth / 1.6; // 16:10 aspect ratio
   svgProps.margin = {
     top: svgProps.outerHeight * .15, 
-    right: svgProps.outerWidth * .07, 
-    bottom: svgProps.outerHeight * .15, 
-    left: svgProps.outerWidth * .06
+    right: svgProps.outerWidth * .05, 
+    bottom: svgProps.outerHeight * .17, 
+    left: svgProps.outerWidth * .1
   };
   svgProps.innerWidth = svgProps.outerWidth - svgProps.margin.left - svgProps.margin.right;
   svgProps.innerHeight = svgProps.outerHeight - svgProps.margin.top - svgProps.margin.bottom;
+  svgProps.legend = {
+    width: 330,
+    height: 20,
+    numColors: 11
+  };
 
   // console.log(svgProps);
 
   
   /** Set the scales for x and y axes */
   const xScale = d3.scaleBand()
-    .domain(data.years.unique)
+    .domain(data.years)
     .range([0, svgProps.innerWidth])
   ;
 
   const yScale = d3.scaleBand()
-    .domain(data.months.unique)
+    .domain(data.months)
     .range([0, svgProps.innerHeight]) 
   ; 
 
@@ -95,21 +101,17 @@ function drawSvg() {
   const titleGroup = svg.append("g").attr("id", "title-group").style("text-anchor", "middle");
   titleGroup.append("text")
     .attr("id", "title")
-    // .attr("dy", "1.25em")
-    // .attr("y", svgProps.margin.top / 4 * 3)
     .attr("fill", "#222")
-    // .style("text-anchor", "middle")
     .style("font-size", "1.25em")
     .style("font-weight", "bold")
     .text("Estimated Global Land-Surface TAVG (1753 - 2015)")
   titleGroup.append("text")
     .attr("id", "description")
-    // .attr("x", (svgProps.outerWidth / 2))
     .attr("dy", "1.25em")
     .attr("fill", "#222")
     .style("font-weight", "normal")
     .style("font-size", "1em")
-    .text("using estimated base temperature " + json.baseTemperature + "℃")
+    .text("using estimated base temperature " + data.baseTemperature + "℃")
   ;
   // Center titleGroup horizontally on svg and vertically within top margin.
   titleGroup.attr("transform", function() {
@@ -122,6 +124,7 @@ function drawSvg() {
   /** Create heatmap group */
   const heatmap = svg.append("g")
     .attr("id", "heatmap")
+    .attr("transform", "translate(" + svgProps.margin.left + ", " + svgProps.margin.top + ")")
   ;
 
   function getQuantileDomain(minValue, maxValue, numGroups) {
@@ -145,19 +148,14 @@ function drawSvg() {
     return domainArr;
   }
 
-  console.log(getQuantileDomain(d3.min(data.temps.all), d3.max(data.temps.all), 11));
-  console.log(getQuantileDomain(d3.min(data.temps.all), d3.max(data.temps.all), 11).length);
-
-  const heatmapColorScheme = d3.schemeRdYlBu[11].reverse();
-
   const colorScale = d3.scaleThreshold()
-    .domain(getQuantileDomain(d3.min(data.temps.unique), d3.max(data.temps.unique), 11))
-    .range(heatmapColorScheme)
+    .domain(getQuantileDomain(data.tempsMin, data.tempsMax, svgProps.legend.numColors))
+    .range(d3.schemeRdYlBu[svgProps.legend.numColors].reverse())
   ;
 
   /** Create rects from json data */
   heatmap.selectAll("rect")
-    .data(json.monthlyVariance)
+    .data(data.monthlyVariance)
     .enter()
     .append("rect")
     .attr("class", "cell")
@@ -167,7 +165,7 @@ function drawSvg() {
     .attr("height", yScale.bandwidth())
     .attr("data-month", (d) => d.month - 1)
     .attr("data-year", (d) => d.year)
-    .attr("data-temp", (d) => d3.format(".1~f")(json.baseTemperature + d.variance))
+    .attr("data-temp", (d) => d3.format(".1~f")(data.baseTemperature + d.variance))
     .attr("fill", function(d) {
       let temp = +d3.select(this).node().dataset.temp;
       return colorScale(temp);
@@ -192,23 +190,15 @@ function drawSvg() {
   /** Legend for heatmap, positioned on the right-edge */
   const legendGroup = svg.append("g")
     .attr("id", "legend-group")
-    .attr("transform", "translate(" + 50 + ", " + 5 + ")")
-    .style("outline", "1px solid lime")
   ;
 
   const legend = legendGroup.append("g")
     .attr("id", "legend")
-    // .attr("transform", function() {
-    //   let x = 0, y = svgProps.innerHeight + 30;
-    //   return "translate(" + x + ", " + y + ")"
-    // })
-    // .style("outline", "1px solid lime")
-  
   ;
 
   const legendXScale = d3.scaleLinear()
-    .domain(d3.extent(data.temps.unique))
-    .range([0 , 30 * 11])
+    .domain(d3.extent(data.temps))
+    .range([0 , svgProps.legend.width])
   ;
 
   const legendXAxis = d3.axisBottom(legendXScale)
@@ -217,14 +207,13 @@ function drawSvg() {
   ;
 
   legend.selectAll("rect")
-    .data([+d3.min(data.temps.unique), ...colorScale.domain()])
+    .data([+data.tempsMin, ...colorScale.domain()])
     .enter()
     .append("rect")
-    // .attr("x", function(d, i) { return i * 20})
     .attr("x", (d) => legendXScale(d))
     .attr("y", 0)
-    .attr("width", 30)
-    .attr("height", 20)
+    .attr("width", svgProps.legend.width / svgProps.legend.numColors)
+    .attr("height", svgProps.legend.height)
     .attr("fill", function(d) {return colorScale(d)})
   ;
 
@@ -238,35 +227,11 @@ function drawSvg() {
   legendGroup.attr("transform", function() { 
     let gWidth = this.getBBox().width;
     let gHeight = this.getBBox().height;
+    let xAxisH = d3.select("g#x-axis").node().getBBox().height;
     let x = ((svgProps.outerWidth / 2) - (gWidth / 2));
-    let y = (svgProps.outerHeight - (svgProps.margin.bottom / 2)) - (gHeight / 2);
+    let y = (svgProps.outerHeight - ((svgProps.margin.bottom - xAxisH) / 2)) - (gHeight / 2);
     return "translate(" + x + ", " + y + ")";
   });
-
-
-  /** Now, get heatmap bbox dimensions and bind that data to group */
-  heatmap.each(function() {
-    let gData = {};
-    gData.bboxWidth = d3.format(".2~f")(this.getBBox().width);
-    gData.bboxHeight = d3.format(".2~f")(this.getBBox().height);
-    d3.select("g#x-axis").each(function() {
-      gData.xAxisHeight = d3.format(".2~f")(this.getBBox().height)
-    });
-    d3.select("g#y-axis").each(function() {
-      gData.yAxisWidth = d3.format(".2~f")(this.getBBox().width)
-    });
-    d3.select(this).datum(gData);
-  });
-
-  /** Center the heatmap group in the svg */
-  heatmap.attr("transform", function(d) {
-    let bboxWDiff = d.bboxWidth - svgProps.innerWidth;
-    let bboxHDiff = d.bboxHeight - svgProps.innerHeight;
-    let newX = Math.round(svgProps.margin.left + (bboxWDiff / 2));
-    let newY = Math.round(svgProps.margin.top + (bboxHDiff / 2) - (d.xAxisHeight / 2));
-    return "translate(" + newX + "," + svgProps.margin.top + ")"
-  });
-
 
   /** Hover effects for tooltip */
   heatmap.selectAll(".cell")
@@ -281,8 +246,9 @@ function drawSvg() {
      tavgText = tempC + "℃ (" + tempF + "℉)",
      varianceText = varC < 0 ? varC + "℃" : "+" + varC + "℃"
      ;
-    
-     d3.select(this).style("outline", "2px solid lime");
+
+     d3.select(this).attr("stroke", "lime");
+     d3.select(this).attr("stroke-width", 1.5);
      
      tooltip
        .style("visibility", "visible")
@@ -300,16 +266,9 @@ function drawSvg() {
        .style("left", (d3.event.pageX + 20) + "px");
    })
    .on("mouseout", function() {
-    d3.select(this).style("outline", "none");
+     d3.select(this).attr("stroke", "none");
      tooltip.style("visibility", "hidden");
    })
  ;
-  
-  
-
-
-
-
-
 
 }
