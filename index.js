@@ -41,14 +41,6 @@ const tooltip = d3.select("body")
     d3.select(this).append("span").attr("id", "variance");
   })
 ;
-/** built-in colorbrewer2.org color scheme, hot to cold, 11 colors 
- *    d3.schemeRdYlBu[11]
- * returns ['#a50026','#d73027','#f46d43','#fdae61','#fee090','#ffffbf','#e0f3f8','#abd9e9','#74add1','#4575b4','#313695']
- * 
- * same as http://colorbrewer2.org/#type=diverging&scheme=RdYlBu&n=11
- * 
- * see https://medium.com/@Elijah_Meeks/color-advice-for-data-visualization-with-d3-js-33b5adc41c90
- */
 
 function drawSvg() {
 
@@ -57,9 +49,9 @@ function drawSvg() {
   svgProps.outerWidth = 1000;
   svgProps.outerHeight = svgProps.outerWidth / 1.6; // 16:10 aspect ratio
   svgProps.margin = {
-    top: svgProps.outerHeight * .1, 
+    top: svgProps.outerHeight * .15, 
     right: svgProps.outerWidth * .07, 
-    bottom: svgProps.outerHeight * .1, 
+    bottom: svgProps.outerHeight * .15, 
     left: svgProps.outerWidth * .06
   };
   svgProps.innerWidth = svgProps.outerWidth - svgProps.margin.left - svgProps.margin.right;
@@ -88,7 +80,6 @@ function drawSvg() {
   
   const yAxis = d3.axisLeft(yScale)
     .tickFormat(function(d) {
-      
       return formatMonth(new Date(0, d));
     })
   ;
@@ -101,24 +92,32 @@ function drawSvg() {
   ;
 
   /** svg title text */
-  svg.append("text")
+  const titleGroup = svg.append("g").attr("id", "title-group").style("text-anchor", "middle");
+  titleGroup.append("text")
     .attr("id", "title")
-    .attr("x", (svgProps.outerWidth / 2))
-    .attr("y", svgProps.margin.top / 4 * 3)
+    // .attr("dy", "1.25em")
+    // .attr("y", svgProps.margin.top / 4 * 3)
     .attr("fill", "#222")
-    .style("text-anchor", "middle")
+    // .style("text-anchor", "middle")
     .style("font-size", "1.25em")
     .style("font-weight", "bold")
     .text("Estimated Global Land-Surface TAVG (1753 - 2015)")
-    .append("tspan")
+  titleGroup.append("text")
     .attr("id", "description")
-    .attr("x", (svgProps.outerWidth / 2))
-    .attr("dy", 20)
+    // .attr("x", (svgProps.outerWidth / 2))
+    .attr("dy", "1.25em")
     .attr("fill", "#222")
     .style("font-weight", "normal")
-    .style("font-size", "0.7em")
-    .text("1994 - 2015")
+    .style("font-size", "1em")
+    .text("using estimated base temperature " + json.baseTemperature + "℃")
   ;
+  // Center titleGroup horizontally on svg and vertically within top margin.
+  titleGroup.attr("transform", function() {
+    let gHeight = this.getBBox().height;
+    let x = svgProps.outerWidth / 2;
+    let y = ((svgProps.margin.top - gHeight) / 2) + (gHeight / 2);
+    return "translate(" + x + ", " + y + ")";
+  });
 
   /** Create heatmap group */
   const heatmap = svg.append("g")
@@ -192,91 +191,57 @@ function drawSvg() {
 
   /** Legend for heatmap, positioned on the right-edge */
   const legendGroup = svg.append("g")
-    .attr("id", "legend")
+    .attr("id", "legend-group")
     .attr("transform", "translate(" + 50 + ", " + 5 + ")")
     .style("outline", "1px solid lime")
   ;
 
-  const legend = legendGroup.append("g");
+  const legend = legendGroup.append("g")
+    .attr("id", "legend")
+    // .attr("transform", function() {
+    //   let x = 0, y = svgProps.innerHeight + 30;
+    //   return "translate(" + x + ", " + y + ")"
+    // })
+    // .style("outline", "1px solid lime")
+  
+  ;
 
-  const legendXScale = d3.scaleBand()
-    .domain(colorScale.domain())
-    .range([0 , svgProps.innerWidth])
+  const legendXScale = d3.scaleLinear()
+    .domain(d3.extent(data.temps.unique))
+    .range([0 , 30 * 11])
+  ;
+
+  const legendXAxis = d3.axisBottom(legendXScale)
+    .tickValues(colorScale.domain())
+    .tickFormat(d3.format(".1f"))
   ;
 
   legend.selectAll("rect")
-    .data(heatmapColorScheme)
+    .data([+d3.min(data.temps.unique), ...colorScale.domain()])
     .enter()
     .append("rect")
-    .attr("x", function(d, i) { return i * 20})
+    // .attr("x", function(d, i) { return i * 20})
+    .attr("x", (d) => legendXScale(d))
     .attr("y", 0)
-    .attr("width", 20)
+    .attr("width", 30)
     .attr("height", 20)
-    .attr("fill", function(d) {return d})
-  ;
-    
-  ;
-  // Create a rect for legend box that will center legend contents
-  // legend.append("rect")
-  //   .attr("id", "legend-box")
-  //   .attr("fill", "hsl(0, 0%, 96%)")
-  //   .attr("rx", 8)
-  //   .attr("ry", 8)
-  // ;
-    
-  // // Group for legend text
-  // legend.append("g")
-  //   .attr("id", "legend-text")
-  //   .attr("font-size", ".8em")
-  //   .style("text-anchor", "start")
-  //   .style("outline", "1px solid blue")
-  //   .each(function() {
-  //     d3.select(this).append("text")
-  //       .attr("dy", "1em")
-  //       .text("Top placeholder text element ")
-  //     ;
-  //     d3.select(this).append("text")
-  //       .attr("dy", "2.5em")
-  //       .text("Bottom placeholder text element ")
-  //     ;
-  //   })
+    .attr("fill", function(d) {return colorScale(d)})
   ;
 
-  // Position the legend contents
-  // legend.each(function() {
-  //   // set padding for the legend box
-  //   const padding = {top: 10, right: 10, bottom: 10, left: 10};
-  //   // get legend-text group bbox dimensions
-  //   const legendText = {
-  //     width: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().width),
-  //     height: +d3.format(".2~f")(this.querySelector("g#legend-text").getBBox().height)
-  //   };
+  legend.append("g")
+    .attr("id", "legend-x-axis")
+    .attr("transform", "translate(0," + d3.select("g#legend").node().getBBox().height + ")")
+    .call(legendXAxis)
+  ;
 
-  //   // Calculate legend-box rect dimensions
-  //   const box = {
-  //     width: Math.round(padding.left + legendText.width + padding.right), 
-  //     height: Math.round(padding.top + legendText.height + padding.bottom)
-  //   };
-    
-  //   // Position legend-box and set dimensions
-  //   d3.select("rect#legend-box")
-  //     .attr("x", 0)
-  //     .attr("y", 0)
-  //     .attr("width", box.width)
-  //     .attr("height", box.height)
-  //   ;
-
-  //   // Position legend-text group, centered "within" legend-box
-  //   d3.select("g#legend-text")
-  //     .attr("transform", "translate(" + padding.left + ", " + padding.top + ")")
-  //   ;
-  // });
-
-
-
-
-
-
+  // Center legendGroup horizontally on svg and vertically within bottom margin.
+  legendGroup.attr("transform", function() { 
+    let gWidth = this.getBBox().width;
+    let gHeight = this.getBBox().height;
+    let x = ((svgProps.outerWidth / 2) - (gWidth / 2));
+    let y = (svgProps.outerHeight - (svgProps.margin.bottom / 2)) - (gHeight / 2);
+    return "translate(" + x + ", " + y + ")";
+  });
 
 
   /** Now, get heatmap bbox dimensions and bind that data to group */
@@ -299,7 +264,7 @@ function drawSvg() {
     let bboxHDiff = d.bboxHeight - svgProps.innerHeight;
     let newX = Math.round(svgProps.margin.left + (bboxWDiff / 2));
     let newY = Math.round(svgProps.margin.top + (bboxHDiff / 2) - (d.xAxisHeight / 2));
-    return "translate(" + newX + "," + newY + ")"
+    return "translate(" + newX + "," + svgProps.margin.top + ")"
   });
 
 
@@ -314,7 +279,7 @@ function drawSvg() {
      varC = d.variance,
      yrMoText = year + ", " + month,
      tavgText = tempC + "℃ (" + tempF + "℉)",
-     varianceText = varC + "℃" 
+     varianceText = varC < 0 ? varC + "℃" : "+" + varC + "℃"
      ;
     
      d3.select(this).style("outline", "2px solid lime");
